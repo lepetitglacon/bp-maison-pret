@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { House } from './House'
 import { Twinkles } from './Twinkles'
 import { shineUniforms } from './shine'
+import { advanceIdleTime, getIdleTime, motion } from './motion'
 import { STEPS, type PartId, type Step } from './steps'
 
 const { damp, clamp } = THREE.MathUtils
@@ -20,10 +21,12 @@ interface SceneProps {
   onSelect: (id: PartId) => void
   /** Emplacement de la zone 3D dans la page : la caméra y centre la maison */
   frameRef: React.RefObject<HTMLElement | null>
+  /** Description de la scène pour les lecteurs d'écran */
+  label: string
 }
 
 /** Maison flottante, orientable au doigt / à la souris avec inertie. */
-function FloatingHouse({ step, mode, introAt, onSelect }: Omit<SceneProps, 'frameRef'>) {
+function FloatingHouse({ step, mode, introAt, onSelect }: Omit<SceneProps, 'frameRef' | 'label'>) {
   const outer = useRef<THREE.Group>(null)
   const spin = useRef<THREE.Group>(null)
   const gl = useThree((s) => s.gl)
@@ -92,11 +95,11 @@ function FloatingHouse({ step, mode, introAt, onSelect }: Omit<SceneProps, 'fram
     }
   }, [gl])
 
-  useFrame(({ clock }, dt) => {
+  useFrame((_, dt) => {
     const c = ctrl.current
-    const t = clock.elapsedTime
+    const t = getIdleTime()
     if (!c.dragging) {
-      if (mode === 'welcome') c.target -= dt * 0.35 // la page de garde tourne doucement toute seule, même sens
+      if (mode === 'welcome' && !motion.paused) c.target -= dt * 0.35 // la page de garde tourne doucement toute seule, même sens
       c.target += c.vel
       c.vel *= Math.pow(0.04, dt) // inertie
       c.tiltTarget = damp(c.tiltTarget, 0, 1.5, dt)
@@ -129,11 +132,18 @@ function FloatingHouse({ step, mode, introAt, onSelect }: Omit<SceneProps, 'fram
   )
 }
 
+/** Fait avancer le temps des mouvements au repos (figé quand les animations sont en pause) */
+function IdleClock() {
+  useFrame((_, dt) => advanceIdleTime(dt), -1)
+  return null
+}
+
 /** Allume / éteint l'effet shiny de la maison et fait avancer son balayage */
 function ShineDriver({ active }: { active: boolean }) {
-  useFrame(({ clock }, dt) => {
-    shineUniforms.uShine.value = damp(shineUniforms.uShine.value, active ? 1 : 0, 3, dt)
-    shineUniforms.uShineTime.value = clock.elapsedTime
+  useFrame((_, dt) => {
+    // en pause, le balayage lumineux s'éteint
+    shineUniforms.uShine.value = damp(shineUniforms.uShine.value, active && !motion.paused ? 1 : 0, 3, dt)
+    shineUniforms.uShineTime.value = getIdleTime()
   })
   return null
 }
@@ -201,16 +211,19 @@ function CameraRig({ mode, frameRef }: { mode: SceneMode; frameRef: React.RefObj
   return null
 }
 
-export function Scene({ step, mode, introAt, onSelect, frameRef }: SceneProps) {
+export function Scene({ step, mode, introAt, onSelect, frameRef, label }: SceneProps) {
   return (
     <Canvas
       className="scene"
+      role="img"
+      aria-label={label}
       dpr={[1, 2]}
       shadows="percentage"
       gl={{ toneMappingExposure: 1.15 }}
       camera={{ position: [0, 2.2, 8], fov: 38 }}
       onPointerMissed={() => (document.body.style.cursor = '')}
     >
+      <IdleClock />
       <StudioEnvironment />
       {/* Lumière principale de biais, en hauteur : elle porte les ombres (toit sur les murs, fond des "+X") */}
       <hemisphereLight args={['#ffffff', '#8aa5d6', 0.35]} />

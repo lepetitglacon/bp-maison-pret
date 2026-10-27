@@ -219,6 +219,9 @@ export function StepCarousel({ steps, index, onChange }: StepCarouselProps) {
                 dragging,
               )}
               aria-hidden={i !== index}
+              // cartes non affichées : ni focus clavier, ni lecteur d'écran (elles défilent, donc
+              // Chrome les rendrait sinon atteignables à la tabulation)
+              inert={i !== index}
               aria-label={`Étape ${i + 1} sur ${steps.length}`}
             >
               <p className="kicker">
@@ -238,10 +241,10 @@ export function StepCarousel({ steps, index, onChange }: StepCarouselProps) {
                           href={tip.link.href}
                           target="_blank"
                           rel="noopener noreferrer"
-                          tabIndex={i === index ? 0 : -1}
                         >
                           {tip.link.label}
                           <ExternalIcon />
+                          <span className="sr-only"> (nouvel onglet)</span>
                         </a>
                       )}
                     </div>
@@ -253,16 +256,15 @@ export function StepCarousel({ steps, index, onChange }: StepCarouselProps) {
         </div>
       </div>
 
-      <nav className="controls">
+      <nav className="controls" aria-label="Navigation entre les étapes">
         <button className="arrow" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Étape précédente">
           ←
         </button>
-        <div className="nodes" role="tablist">
+        <div className="nodes">
           {steps.map((s, i) => (
             <button
               key={s.title}
-              role="tab"
-              aria-selected={i === index}
+              aria-current={i === index ? 'step' : undefined}
               aria-label={`Étape ${i + 1} : ${s.title}`}
               className={`node${i === index ? ' is-current' : ''}${i < index ? ' is-done' : ''}`}
               onClick={() => go(i)}

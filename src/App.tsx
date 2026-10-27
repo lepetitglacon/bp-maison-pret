@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Scene, type SceneMode } from './Scene'
 import { StepCarousel } from './StepCarousel'
-import { STEPS, WELCOME_STEP, stepIndexForPart, type PartId } from './steps'
+import { PART_IDS, STEPS, WELCOME_STEP, stepIndexForPart, type PartId } from './steps'
+import { motion } from './motion'
 
 /** Durée (ms) pendant laquelle le panneau bleu grandit vers le panneau des étapes */
 const SHEET_GROW = 550
@@ -20,6 +21,9 @@ export default function App() {
   /** Les cartes de la première étape jouent leur animation d'entrée */
   const [entering, setEntering] = useState(false)
   const timers = useRef<number[]>([])
+  /** Mouvements automatiques de la 3D en pause (par défaut si le système demande moins d'animations) */
+  const [paused, setPaused] = useState(motion.paused)
+  motion.paused = paused
   const sheetRef = useRef<HTMLElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const step = mode === 'welcome' ? WELCOME_STEP : STEPS[index]
@@ -111,7 +115,7 @@ export default function App() {
               <path d="M4 11.5 12 5l8 6.5V20h-5.5v-5h-5v5H4z" />
             </svg>
           </button>
-          <p className="top__title">Les différentes étapes</p>
+          <h1 className="top__title">Les différentes étapes</h1>
           <span className="top__count">
             {index + 1}/{STEPS.length}
           </span>
@@ -120,11 +124,42 @@ export default function App() {
 
       {/* Le canvas couvre toute l'app (il ne se redimensionne jamais pendant les transitions) ;
           .stage n'est qu'un emplacement : la caméra y centre la maison. */}
-      <Scene step={step} mode={mode} introAt={introAt} onSelect={onSelectPart} frameRef={stageRef} />
+      <Scene
+        step={step}
+        mode={mode}
+        introAt={introAt}
+        onSelect={onSelectPart}
+        frameRef={stageRef}
+        label={
+          mode === 'welcome'
+            ? 'Maison 3D en forme de logo +X, qui tourne sur elle-même'
+            : `Maison 3D en construction : ${step.placed.length} pièce${step.placed.length > 1 ? 's' : ''} posée${step.placed.length > 1 ? 's' : ''} sur ${PART_IDS.length}`
+        }
+      />
 
       <div className="stage" ref={stageRef}>
-        {mode === 'steps' && <p className="hint">Faites tourner la maison · Touchez une pièce</p>}
+        {mode === 'steps' && (
+          <p className="hint" aria-hidden>
+            Faites tourner la maison · Touchez une pièce
+          </p>
+        )}
+        <button
+          className="motion-toggle"
+          onClick={() => setPaused((p) => !p)}
+          aria-pressed={paused}
+          aria-label={paused ? 'Relancer les animations' : 'Mettre en pause les animations'}
+          title={paused ? 'Relancer les animations' : 'Mettre en pause les animations'}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+            {paused ? <path d="M8 5v14l11-7z" /> : <path d="M7 5h4v14H7zM13 5h4v14h-4z" />}
+          </svg>
+        </button>
       </div>
+
+      {/* Annonce du changement d'étape pour les lecteurs d'écran */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {mode === 'steps' ? `Étape ${index + 1} sur ${STEPS.length} : ${STEPS[index].title}` : ''}
+      </p>
 
       {/* Un seul panneau pour les deux écrans : c'est lui qui se transforme pendant la transition */}
       <section className={`sheet sheet--${mode}`} ref={sheetRef}>

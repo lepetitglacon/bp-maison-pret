@@ -209,8 +209,8 @@ button {
 .home {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 1.5px solid var(--line);
   border-radius: 50%;
@@ -331,7 +331,7 @@ button {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #52668f; /* 5,2:1 sur le fond de carte (WCAG 1.4.3) */
 }
 
 .card h2 {
@@ -409,8 +409,8 @@ button {
 
 .arrow {
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 0;
   background: var(--navy);
@@ -448,7 +448,7 @@ button {
   width: 26px;
   height: 26px;
   padding: 0;
-  border: 2px solid var(--line);
+  border: 2px solid #7a8cb4; /* 3,4:1 sur blanc (WCAG 1.4.11) */
   border-radius: 50%;
   background: #fff;
   color: var(--muted);
@@ -673,4 +673,64 @@ button {
   .is-entering * {
     animation: none !important;
   }
+}
+
+/* ---------- Accessibilité ---------- */
+/* Texte réservé aux lecteurs d'écran */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus clavier bien visible, sur fond clair comme sur fond navy */
+:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 3px;
+}
+
+.sheet--welcome :focus-visible {
+  outline-color: #fff;
+}
+
+/* Pastilles d'étape : zone tactile de 44 px autour du rond de 26 px */
+.node::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
+/* Bouton pause / lecture des animations 3D */
+.motion-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--navy);
+  cursor: pointer;
+  pointer-events: auto; /* la zone 3D laisse passer les clics, pas ce bouton */
+}
+
+.motion-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.motion-toggle:hover {
+  background: #fff;
 }

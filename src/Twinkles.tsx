@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useHouseParts } from './House'
 import type { PartId } from './steps'
+import { getIdleTime } from './motion'
 
 /** Les deux faces "+X" du modèle, réutilisées en miniature, avec leurs couleurs */
 const LOGOS: { id: PartId; color: string }[] = [
@@ -62,13 +63,13 @@ function LogoSwarm({ geometry, color, active }: { geometry: THREE.BufferGeometry
   const appear = useRef(0)
   const q = useMemo(() => new THREE.Quaternion(), [])
 
-  useFrame(({ clock }, dt) => {
+  useFrame((_, dt) => {
     const m = mesh.current
     if (!m) return
     appear.current = damp(appear.current, active ? 1 : 0, active ? 3 : 6, dt)
     m.visible = appear.current > 0.01
     if (!m.visible) return
-    const t = clock.elapsedTime
+    const t = getIdleTime()
     items.forEach((it, i) => {
       tmp.position.set(
         it.pos.x + Math.sin(t * it.speed * 0.6 + it.phase) * 0.15,

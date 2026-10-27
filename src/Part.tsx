@@ -3,6 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { PartId, Vec3 } from './steps'
 import { addShine } from './shine'
+import { getIdleTime } from './motion'
 
 const projected = new THREE.Vector3()
 const PHASES: Record<PartId, number> = { Objet012: 0, Objet013: 1.3, Rectangle005: 2.1, Rectangle007: 3.4, Rectangle006: 4.2 }
@@ -90,6 +91,7 @@ export function Part({
     if (!container) return
     const el = document.createElement('div')
     el.className = 'tag'
+    el.setAttribute('aria-hidden', 'true') // décoratif : l'étape est déjà annoncée par le carrousel
     container.appendChild(el)
     setTag(el)
     return () => el.remove()
@@ -140,7 +142,8 @@ export function Part({
     const bounce = since < 1 ? Math.exp(-since * 9) * Math.sin(since * 20) * 0.08 : 0
     const out = a.hover * 0.12 + bounce
     const away = Math.min(a.explode, 1.4)
-    const bob = Math.sin(t * 1.6 + phase) * 0.08 * away // les pièces en attente flottent
+    const idle = getIdleTime() // s'arrête quand les animations sont en pause
+    const bob = Math.sin(idle * 1.6 + phase) * 0.08 * away // les pièces en attente flottent
 
     g.position.set(
       base[0] + explode.pos[0] * a.explode + push[0] * out,
@@ -149,7 +152,7 @@ export function Part({
     )
     g.rotation.set(explode.rot[0] * a.turn, explode.rot[1] * a.turn, explode.rot[2] * a.turn)
 
-    const pulse = 0.5 + 0.5 * Math.sin(t * 3)
+    const pulse = 0.5 + 0.5 * Math.sin(idle * 3)
     for (const m of mats) {
       m.color.copy(m.userData.base as THREE.Color).lerp(WHITE, a.hover * 0.1)
       m.emissive.copy(GLOW)
