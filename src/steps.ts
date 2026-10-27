@@ -1,129 +1,212 @@
-export type PartId = 'floor' | 'front' | 'back' | 'left' | 'right' | 'roof'
+/** Pièces du modèle 3D (noms des nœuds dans public/maison.glb) */
+export type PartId = 'Objet012' | 'Objet013' | 'Rectangle005' | 'Rectangle006' | 'Rectangle007'
 export type Vec3 = [number, number, number]
 
-export interface Step {
-  kicker: string
+export const PART_IDS: PartId[] = ['Objet012', 'Objet013', 'Rectangle005', 'Rectangle007', 'Rectangle006']
+
+/** Carte d'astuce affichée sous le titre d'une étape, avec un lien externe optionnel */
+export interface Tip {
   title: string
   text: string
-  facts: string[]
-  /** Pièce mise en avant à cette étape */
+  link?: { label: string; href: string }
+}
+
+export interface Step {
+  title: string
+  subtitle: string
+  items?: Tip[]
+  /** Pièce posée à cette étape (mise en avant) */
   active: PartId | null
   /** Pièces déjà posées à leur place (cumulatif) */
   placed: PartId[]
   /** Orientation de la maison (radians, axe Y) */
   rotY: number
-  /** Position caméra */
-  cam: Vec3
-  /** Hauteur visée par la caméra */
-  lookY?: number
+  /**
+   * Inclinaison (radians, axe X) pour présenter une face pile en face de la caméra.
+   * Quand elle est définie, la maison arrête de se balancer pour garder la vue alignée.
+   */
+  tiltX?: number
   celebrate?: boolean
 }
 
-const HALF_PI = Math.PI / 2
-
 export const PART_LABELS: Record<PartId, string> = {
-  floor: 'Fondations · Capacité',
-  front: 'Mur 1 · Apport',
-  left: 'Mur 2 · Comparer',
-  right: 'Mur 3 · Dossier',
-  back: 'Mur 4 · Assurance',
-  roof: 'Toit · Offre de prêt',
+  Objet012: 'Dénicher le bien',
+  Objet013: 'RDV avec un conseiller',
+  Rectangle005: 'Le prêt',
+  Rectangle007: 'L’offre de prêt',
+  Rectangle006: 'Débloquer les fonds',
 }
+
+const upTo = (n: number) => PART_IDS.slice(0, n)
 
 export const STEPS: Step[] = [
   {
-    kicker: 'Introduction',
-    title: 'Un prêt, c’est comme une maison',
-    text: 'Des fondations, quatre murs et un toit : chaque étape du crédit immobilier en est une pièce. Faites glisser pour la construire, pièce par pièce.',
-    facts: ['≈ 3 à 4 mois du compromis aux clés'],
+    title: 'Préparer votre projet',
+    subtitle: 'Calculer votre enveloppe',
+    items: [
+      { title: 'Le montant de votre apport personnel', text: 'Estimer l’épargne que vous pouvez consacrer à votre projet' },
+      {
+        title: 'Lister les dépenses associées au projet',
+        text: 'Frais de notaire, travaux, ameublement, ...',
+        link: { label: 'Estimer les frais de notaire', href: 'https://www.notaires.fr/' },
+      },
+      {
+        title: 'Réaliser une simulation de votre capacité d’emprunt',
+        text: 'Adapter votre mensualité de prêt à vos revenus',
+        link: { label: 'Simulateurs de l’ANIL', href: 'https://www.anil.org/' },
+      },
+    ],
+    // toutes les pièces sont encore éparpillées : la première se pose à l'étape suivante
     active: null,
     placed: [],
-    rotY: 0.55,
-    cam: [0, 2.2, 8],
+    rotY: 0.5,
   },
   {
-    kicker: 'Fondations',
-    title: 'Votre capacité d’emprunt',
-    text: 'Tout repose dessus. Les banques limitent le taux d’endettement à 35 % de vos revenus nets, assurance comprise, sur 25 ans maximum.',
-    facts: ['35 % d’endettement max', '25 ans (27 dans le neuf)', 'Reste à vivre'],
-    active: 'floor',
-    placed: ['floor'],
-    rotY: 0.55,
-    cam: [0, 0.6, 8.6],
-    lookY: -0.35,
+    title: 'Dénicher le bien',
+    subtitle: 'Trouver le logement qui vous correspond',
+    items: [
+      {
+        title: 'Comparer les prix du quartier',
+        text: 'Consultez les ventes réalisées autour du bien pour juger si son prix est cohérent.',
+        link: { label: 'Prix des ventes (DVF)', href: 'https://app.dvf.etalab.gouv.fr/' },
+      },
+      {
+        title: 'Vérifier les risques du terrain',
+        text: 'Inondation, sols argileux, pollution : regardez les risques connus à l’adresse du bien.',
+        link: { label: 'Géorisques', href: 'https://www.georisques.gouv.fr/' },
+      },
+      {
+        title: 'Lire les diagnostics',
+        text: 'DPE, amiante, électricité : ils peuvent révéler des travaux à prévoir dans votre budget.',
+      },
+    ],
+    active: 'Objet012',
+    placed: upTo(1),
+    rotY: 0.5,
   },
   {
-    kicker: 'Mur 1',
-    title: 'L’apport personnel',
-    text: 'Visez au moins 10 % du prix : il couvre les frais de notaire et de garantie, rassure la banque et améliore votre taux.',
-    facts: ['≈ 10 % du prix', 'Notaire : 7–8 % ancien', '2–3 % neuf'],
-    active: 'front',
-    placed: ['floor', 'front'],
-    rotY: 0.3,
-    cam: [0, 2.2, 8.4],
+    title: 'Prendre RDV avec un conseiller',
+    subtitle: 'Présenter votre projet immobilier',
+    items: [
+      {
+        title: 'Préparer vos justificatifs',
+        text: 'Pièce d’identité, derniers bulletins de salaire, avis d’imposition et relevés de comptes.',
+      },
+      {
+        title: 'Présenter un budget clair',
+        text: 'Apport, revenus, charges en cours : un dossier lisible facilite l’étude de votre demande.',
+      },
+      {
+        title: 'Venir avec vos questions',
+        text: 'Durée, mensualité, modulation des échéances, remboursement anticipé…',
+      },
+    ],
+    active: 'Objet013',
+    placed: upTo(2),
+    rotY: -0.5,
   },
   {
-    kicker: 'Mur 2',
-    title: 'Simuler & comparer',
-    text: 'Comparez les offres de plusieurs banques, seul ou via un courtier. Le bon indicateur n’est pas le taux nominal, mais le TAEG.',
-    facts: ['TAEG = taux + assurance + frais', 'Courtier', 'Négociation'],
-    active: 'left',
-    placed: ['floor', 'front', 'left'],
-    rotY: HALF_PI - 0.35,
-    cam: [0, 2.2, 8.4],
+    title: 'Le conseiller s’occupe du prêt',
+    subtitle: 'Préparer le financement',
+    items: [
+      {
+        title: 'Comparer avec le TAEG',
+        text: 'Il regroupe intérêts, assurance et frais : c’est le bon indicateur pour comparer des offres.',
+      },
+      {
+        title: 'Choisir votre assurance emprunteur',
+        text: 'Vous pouvez choisir un autre contrat que celui proposé, à garanties équivalentes.',
+        link: { label: 'Vos droits sur Service-Public', href: 'https://www.service-public.fr/' },
+      },
+      {
+        title: 'La garantie du prêt',
+        text: 'Caution ou hypothèque : votre conseiller vous propose la garantie adaptée à votre projet.',
+      },
+    ],
+    active: 'Rectangle005',
+    placed: upTo(3),
+    rotY: 0.5 + Math.PI, // on montre l'autre côté de la maison
   },
   {
-    kicker: 'Mur 3',
-    title: 'Le dossier & l’accord de principe',
-    text: 'Pièces d’identité, 3 derniers bulletins de salaire, 2 avis d’imposition, 3 mois de relevés et le compromis. La banque répond par un accord de principe.',
-    facts: ['Condition suspensive ≥ 30 j', 'Souvent 45 à 60 j'],
-    active: 'right',
-    placed: ['floor', 'front', 'left', 'right'],
-    rotY: -HALF_PI + 0.35,
-    cam: [0, 2.2, 8.4],
+    title: 'Obtenir et accepter l’offre de prêt',
+    subtitle: 'Valider les conditions du prêt',
+    items: [
+      {
+        title: '10 jours de réflexion',
+        text: 'Vous ne pouvez pas accepter l’offre avant le 11e jour qui suit sa réception.',
+      },
+      {
+        title: 'Relire l’offre en détail',
+        text: 'Montant, taux, durée, assurance, garanties : tout doit correspondre à ce qui a été convenu.',
+      },
+      {
+        title: 'La condition suspensive',
+        text: 'Si le prêt est refusé, l’achat est annulé et la somme versée au compromis vous est rendue.',
+        link: { label: 'En savoir plus (ANIL)', href: 'https://www.anil.org/' },
+      },
+    ],
+    active: 'Rectangle007',
+    placed: upTo(4),
+    rotY: 0.5,
   },
   {
-    kicker: 'Mur 4',
-    title: 'Assurance & garantie',
-    text: 'L’assurance emprunteur protège en cas de décès ou d’invalidité ; vous pouvez en changer à tout moment (loi Lemoine). La garantie, elle, protège la banque : caution ou hypothèque.',
-    facts: ['Délégation d’assurance', 'Caution', 'Hypothèque / IPPD'],
-    active: 'back',
-    placed: ['floor', 'front', 'left', 'right', 'back'],
-    rotY: Math.PI + 0.35,
-    cam: [0, 2.2, 8.4],
+    title: 'Débloquer les fonds',
+    subtitle: 'Finaliser le financement',
+    items: [
+      {
+        title: 'Versement au notaire',
+        text: 'Les fonds du prêt sont versés directement au notaire, en vue de la signature.',
+      },
+      {
+        title: 'Préparer votre apport',
+        text: 'Apport et frais de notaire doivent être disponibles sur votre compte avant la signature.',
+        link: { label: 'Frais de notaire', href: 'https://www.notaires.fr/' },
+      },
+      {
+        title: 'Achat dans le neuf',
+        text: 'Les fonds sont débloqués progressivement, au fil de l’avancement du chantier.',
+      },
+    ],
+    active: 'Rectangle006', // le toit vient compléter la maison
+    placed: PART_IDS,
+    // Côté bleu foncé. Les deux panneaux "+X" sont en miroir : leurs X sont décalés de 0,76
+    // en largeur pour 2,15 de profondeur. On se place dans l'axe qui traverse les deux X
+    // (lacet atan(0,76 / 2,15) ≈ 0,34) et on incline la face vers la caméra, qui est ~10° plus haut.
+    rotY: Math.PI - 0.34,
+    tiltX: -0.21,
   },
   {
-    kicker: 'Le toit',
-    title: 'L’offre de prêt',
-    text: 'La banque émet l’offre officielle, qui couvre tout le projet. Un délai de réflexion légal s’impose : impossible de l’accepter avant le 11ᵉ jour.',
-    facts: ['10 jours de réflexion', 'Valable 30 jours min.'],
-    active: 'roof',
-    placed: ['floor', 'front', 'left', 'right', 'back', 'roof'],
-    rotY: 0.6,
-    cam: [0, 4.4, 7.8],
-    lookY: 0.75,
-  },
-  {
-    kicker: 'Signature',
-    title: 'Chez le notaire',
-    text: 'La maison est complète. Vous signez l’acte authentique, la banque débloque les fonds auprès du notaire… et vous recevez les clés.',
-    facts: ['Acte authentique', 'Déblocage des fonds', 'Remise des clés'],
+    title: 'Signer l’acte de vente',
+    subtitle: 'Concrétiser votre projet',
+    items: [
+      {
+        title: 'Visiter le bien une dernière fois',
+        text: 'Vérifiez qu’il est dans l’état prévu au compromis et bien libéré.',
+      },
+      {
+        title: 'Signer chez le notaire',
+        text: 'Vous devenez propriétaire et repartez avec les clés de votre logement.',
+      },
+      {
+        title: 'Assurer votre logement',
+        text: 'L’assurance habitation doit être active au plus tard le jour de la remise des clés.',
+        link: { label: 'Vos obligations sur Service-Public', href: 'https://www.service-public.fr/' },
+      },
+    ],
     active: null,
-    placed: ['floor', 'front', 'left', 'right', 'back', 'roof'],
-    rotY: 0.55,
-    cam: [0, 2.2, 8],
-  },
-  {
-    kicker: 'Et après',
-    title: 'Bienvenue chez vous',
-    text: 'Vous remboursez par mensualités. Vous pourrez renégocier, faire racheter le crédit ou rembourser par anticipation (indemnités plafonnées).',
-    facts: ['Mensualités', 'Remboursement anticipé', 'Renégociation'],
-    active: null,
-    placed: ['floor', 'front', 'left', 'right', 'back', 'roof'],
-    rotY: 0.55,
-    cam: [0, 1.8, 7.4],
+    placed: PART_IDS,
+    rotY: 0.5,
     celebrate: true,
   },
 ]
+
+/** État "page de garde" : maison complète, rien de mis en avant */
+export const WELCOME_STEP: Step = {
+  title: '',
+  subtitle: '',
+  active: null,
+  placed: PART_IDS,
+  rotY: 0.5,
+}
 
 export const stepIndexForPart = (id: PartId) => STEPS.findIndex((s) => s.active === id)

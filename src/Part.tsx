@@ -2,12 +2,20 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { PartId, Vec3 } from './steps'
+import { addShine } from './shine'
 
 const projected = new THREE.Vector3()
-const PHASES: Record<PartId, number> = { floor: 0, front: 1.3, left: 2.1, right: 3.4, back: 4.2, roof: 5.1 }
-const ACCENT = new THREE.Color('#1e8fe0')
-const GOLD = new THREE.Color('#9fd0ff')
+const PHASES: Record<PartId, number> = { Objet012: 0, Objet013: 1.3, Rectangle005: 2.1, Rectangle007: 3.4, Rectangle006: 4.2 }
+// Lueur de la pièce active (même teinte que le prototype)
+const GLOW = new THREE.Color('#0a5fa8')
+const WHITE = new THREE.Color('#ffffff')
 const { damp } = THREE.MathUtils
+/** Distance (part de la position d'attente) à laquelle la pièce s'aligne avant de s'emboîter */
+const ALIGN_GAP = 0.14
+/** Vitesse de l'enclenchement final (part de la position d'attente par seconde) : très rapide = "sec" */
+const SNAP_SPEED = 3.5
+/** On s'enclenche dès qu'on est à cette distance de l'alignement (sans attendre la fin de l'approche) */
+const SNAP_FROM = 0.1
 
 interface PartProps {
   id: PartId
@@ -21,9 +29,16 @@ interface PartProps {
   /** Pièce posée à sa place ; sinon elle flotte éclatée, en attente */
   placed: boolean
   active: boolean
-  celebrate: boolean
+  interactive: boolean
+  /** Éloignement de la position d'attente (multiple de `explode.pos`) */
+  spread: number
+  /**
+   * Intro : à partir de l'instant `at` (secondes, performance.now), la pièce reste dans
+   * la maison pendant `delay` secondes puis rejoint lentement sa position d'attente.
+   */
+  intro: { at: number; delay: number } | null
   onSelect: (id: PartId) => void
-  children: (mats: THREE.MeshStandardMaterial[]) => ReactNode
+  children: (mats: THREE.MeshPhysicalMaterial[]) => ReactNode
 }
 
 export function Part({
@@ -36,7 +51,9 @@ export function Part({
   colors,
   placed,
   active,
-  celebrate,
+  interactive,
+  spread,
+  intro,
   onSelect,
   children,
 }: PartProps) {
@@ -44,14 +61,25 @@ export function Part({
   const anchor = useRef<THREE.Object3D>(null)
   const container = useThree((s) => s.gl.domElement.parentElement)
   const [tag, setTag] = useState<HTMLDivElement | null>(null)
-  const [hovered, setHovered] = useState(false)
-  const anim = useRef({ explode: placed ? 0 : 1, hover: 0, highlight: 0, opacity: 1, bounceAt: -10, bounce: false, landed: placed })
+  const [hoveredRaw, setHovered] = useState(false)
+  const hovered = interactive && hoveredRaw
+  const anim = useRef({ explode: placed ? 0 : 1, hover: 0, highlight: 0, bounceAt: -10, bounce: false, snapped: placed, turn: placed ? 0 : 1 })
 
   const mats = useMemo(
     () =>
       colors.map((c) => {
-        const m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, metalness: 0.02 })
+        const m = new THREE.MeshPhysicalMaterial({
+          color: c,
+          // Satiné : de la brillance sur les arêtes, sans qu'une face plate face caméra "blanchisse"
+          roughness: 0.5,
+          metalness: 0,
+          clearcoat: 0.25,
+          clearcoatRoughness: 0.35,
+          envMapIntensity: 0.8,
+          side: THREE.DoubleSide,
+        })
         m.userData.base = new THREE.Color(c)
+        addShine(m) // effet "shiny" de la dernière étape
         return m
       }),
     [colors],
@@ -85,42 +113,47 @@ export function Part({
       a.bounceAt = t
     }
 
-    a.explode = damp(a.explode, placed ? 0 : 1, 3.5, dt)
-    // Petit rebond au moment où la pièce s'emboîte à sa place
-    if (!placed) a.landed = false
-    else if (!a.landed && a.explode < 0.04) {
-      a.landed = true
-      a.bounceAt = t
+    // Intro : les pièces quittent la maison quasi instantanément, en léger décalé
+    const sinceIntro = intro ? performance.now() / 1000 - intro.at : Infinity
+    const holding = !!intro && sinceIntro < intro.delay
+    const leaving = !!intro && sinceIntro < intro.delay + 0.8
+    if (placed && !holding) {
+      // Emboîtement en deux temps : la pièce vient doucement s'aligner juste devant sa place,
+      // puis s'enclenche d'un coup sec (sans rebond).
+      if (a.snapped) a.explode = 0
+      else if (a.explode > ALIGN_GAP + SNAP_FROM) a.explode = damp(a.explode, ALIGN_GAP, 3.2, dt)
+      else {
+        a.explode = Math.max(0, a.explode - dt * SNAP_SPEED)
+        a.snapped = a.explode === 0
+      }
+    } else {
+      a.snapped = false
+      a.explode = damp(a.explode, holding ? 0 : spread, leaving ? 7 : 2.2, dt)
     }
+    // L'orientation se redresse pendant l'approche, pour que la pièce arrive bien alignée
+    a.turn = damp(a.turn, placed ? 0 : Math.min(a.explode, 1.4), 5, dt)
     a.hover = damp(a.hover, hovered ? 1 : 0, 10, dt)
     a.highlight = damp(a.highlight, active ? 1 : hovered ? 0.45 : 0, 6, dt)
-    a.opacity = damp(a.opacity, placed ? 1 : 0.55, 5, dt)
 
     const since = t - a.bounceAt
-    const bounce = since < 2 ? Math.exp(-since * 4) * Math.sin(since * 18) * 0.22 : 0
+    // petite impulsion au clic, vite amortie
+    const bounce = since < 1 ? Math.exp(-since * 9) * Math.sin(since * 20) * 0.08 : 0
     const out = a.hover * 0.12 + bounce
-    const bob = Math.sin(t * 1.6 + phase) * 0.08 * a.explode // les pièces en attente flottent
+    const away = Math.min(a.explode, 1.4)
+    const bob = Math.sin(t * 1.6 + phase) * 0.08 * away // les pièces en attente flottent
 
     g.position.set(
       base[0] + explode.pos[0] * a.explode + push[0] * out,
       base[1] + explode.pos[1] * a.explode + push[1] * out + bob,
       base[2] + explode.pos[2] * a.explode + push[2] * out,
     )
-    g.rotation.set(explode.rot[0] * a.explode, explode.rot[1] * a.explode, explode.rot[2] * a.explode)
+    g.rotation.set(explode.rot[0] * a.turn, explode.rot[1] * a.turn, explode.rot[2] * a.turn)
 
     const pulse = 0.5 + 0.5 * Math.sin(t * 3)
     for (const m of mats) {
-      m.color.copy(m.userData.base as THREE.Color).lerp(ACCENT, a.highlight * 0.7)
-      if (celebrate) {
-        m.emissive.copy(GOLD)
-        m.emissiveIntensity = 0.08 + 0.1 * pulse
-      } else {
-        m.emissive.copy(ACCENT)
-        m.emissiveIntensity = a.highlight * (0.18 + 0.12 * pulse)
-      }
-      m.opacity = a.opacity
-      m.transparent = a.opacity < 0.99
-      m.depthWrite = !m.transparent
+      m.color.copy(m.userData.base as THREE.Color).lerp(WHITE, a.hover * 0.1)
+      m.emissive.copy(GLOW)
+      m.emissiveIntensity = a.highlight * (0.45 + 0.35 * pulse)
     }
 
     if (tag && anchor.current) {
@@ -134,7 +167,7 @@ export function Part({
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
-    if (e.delta > 8) return // c'était un glisser pour tourner, pas un clic
+    if (!interactive || e.delta > 8) return // c'était un glisser pour tourner, pas un clic
     anim.current.bounce = true
     onSelect(id)
   }
@@ -145,7 +178,7 @@ export function Part({
       onPointerOver={(e) => {
         e.stopPropagation()
         setHovered(true)
-        document.body.style.cursor = 'pointer'
+        if (interactive) document.body.style.cursor = 'pointer'
       }}
       onPointerOut={() => {
         setHovered(false)

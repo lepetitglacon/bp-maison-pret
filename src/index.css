@@ -1,19 +1,18 @@
-@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap');
 
+/* Palette du prototype BPBFC */
 :root {
-  --navy: #0e1a5c;
-  --ink: #14205e;
-  --muted: #555c78;
-  --blue: #1d3ab1;
-  --blue-bright: #1e8fe0;
-  --blue-soft: #e9eefb;
-  --line: #d9deea;
-  --page: #f3f4f8;
-  --hero-1: #0a1650;
-  --hero-2: #12339c;
-  --hero-3: #1f52c8;
-  --radius: 6px;
-  font-family: Ubuntu, 'Segoe UI', system-ui, sans-serif;
+  --navy: #162b70;
+  --deep: #13255d;
+  --cyan: #05aceb;
+  --sky: #279be0;
+  --blue: #1674c7;
+  --ink: #162b70;
+  --muted: #5e72a2;
+  --line: #d9e1f0;
+  --soft: #eef3fb;
+  --page: #e9edf4;
+  font-family: Montserrat, Arial, sans-serif;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
@@ -28,98 +27,215 @@ body,
   margin: 0;
   height: 100%;
   overflow: hidden;
-  overscroll-behavior: none;
+  overscroll-behavior: none; /* pas de rebond ni de navigation par glissement horizontal */
 }
 
 body {
   background: var(--page);
 }
 
+button {
+  font: inherit;
+}
+
 .app {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   width: 100%;
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
-}
-
-/* ---------- En-tête : barre blanche ---------- */
-.top {
-  flex: none;
-  position: relative;
-  z-index: 3;
-  background: #fff;
-  box-shadow: 0 1px 0 var(--line);
-  padding-top: env(safe-area-inset-top);
-}
-
-.top__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  max-width: 1120px;
+  max-width: 640px;
   margin: 0 auto;
-  padding: 14px 16px;
+  background: #fff;
 }
 
-.top h1 {
-  margin: 0;
-  font-weight: 700;
-  font-size: clamp(1.05rem, 4.2vw, 1.5rem);
-  line-height: 1.15;
-  color: var(--navy);
+/* Fond dégradé de l'écran des étapes, en fondu (le canvas transparent est posé dessus) */
+.app::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 55% 40%, #ffffff 0%, #f5faff 50%, #e9f1fa 100%);
+  opacity: 0;
+  transition: opacity 0.6s;
+  pointer-events: none;
 }
 
-.top h1 em {
-  font-style: normal;
-  color: var(--blue-bright);
+.app--steps::before {
+  opacity: 1;
 }
 
-.top__count {
-  flex: none;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--muted);
+/* En-tête et panneau passent au-dessus du canvas */
+.welcome-top,
+.top,
+.sheet {
+  position: relative;
+  z-index: 2;
 }
 
-.progress {
-  height: 3px;
-  background: var(--line);
-}
-
-.progress span {
-  display: block;
-  height: 100%;
-  background: var(--blue-bright);
-  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* ---------- Bandeau bleu avec la maison ---------- */
+/* ---------- Zone 3D ---------- */
 .stage {
   position: relative;
+  z-index: 1;
   flex: 1 1 auto;
   min-height: 0;
-  background:
-    radial-gradient(120% 80% at 70% 35%, rgba(70, 130, 255, 0.35), transparent 60%),
-    linear-gradient(115deg, var(--hero-1) 0%, var(--hero-2) 55%, var(--hero-3) 100%);
-  overflow: hidden;
+  pointer-events: none; /* simple emplacement : la 3D reçoit les interactions */
 }
 
 .scene {
   position: absolute !important;
   inset: 0;
+  z-index: 1;
   touch-action: none;
 }
 
 .hint {
   position: absolute;
-  top: 14px;
-  left: 16px;
+  top: 12px;
+  left: 0;
+  right: 0;
   margin: 0;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.78);
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
   pointer-events: none;
+}
+
+/* ---------- Page de garde ---------- */
+.welcome-top {
+  flex: none;
+  padding: max(40px, calc(env(safe-area-inset-top) + 28px)) 24px 0;
+  text-align: center;
+  background: #fff;
+}
+
+.headline {
+  margin: 0;
+  font-weight: 800;
+  font-size: clamp(2rem, 9vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--navy);
+}
+
+.headline span {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 0 10px 2px;
+  background: var(--cyan);
+  color: #fff;
+  transform: rotate(-3deg);
+}
+
+
+/* Panneau du bas, commun aux deux écrans : il se transforme pendant la transition */
+.sheet {
+  flex: none;
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  transition: background-color 0.35s;
+}
+
+.sheet--welcome {
+  background: var(--navy);
+}
+
+.welcome-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 32px 24px max(20px, calc(env(safe-area-inset-bottom) + 12px));
+  color: #fff;
+}
+
+.cta {
+  width: 100%;
+  max-width: 320px;
+  padding: 16px 20px;
+  border: 0;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--navy);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
+}
+
+.signature {
+  margin: 0;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.signature span {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 4px;
+  background: #fff;
+  color: var(--navy);
+}
+
+.signature small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- Écran des étapes : barre du haut ---------- */
+.top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+
+.home {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+}
+
+.home svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--navy);
+}
+
+.top__title {
+  flex: 1;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.top__count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 /* ---------- Étiquettes 3D ---------- */
@@ -130,11 +246,11 @@ body {
   translate: -50% -50%;
   white-space: nowrap;
   padding: 6px 10px;
-  border-radius: var(--radius);
-  font: 500 12px/1 Ubuntu, sans-serif;
+  border-radius: 8px;
+  font: 600 12px/1 Montserrat, sans-serif;
   background: #fff;
   color: var(--navy);
-  box-shadow: 0 6px 18px rgba(5, 15, 60, 0.3);
+  box-shadow: 0 6px 18px rgba(19, 37, 93, 0.18);
   user-select: none;
   opacity: 0;
   transform: translateY(6px) scale(0.9);
@@ -149,25 +265,18 @@ body {
 }
 
 .tag--active {
-  background: var(--blue-bright);
+  background: var(--navy);
   color: #fff;
 }
 
-/* ---------- Panneau des étapes : carte blanche qui chevauche le bandeau ---------- */
+/* ---------- Carrousel des étapes ---------- */
 .panel {
-  flex: none;
-  position: relative;
-  z-index: 3;
-  width: 100%;
-  max-width: 600px;
-  margin: -28px auto 0;
-  padding: 0 16px;
+  padding: 14px 16px max(12px, env(safe-area-inset-bottom));
 }
 
+/* Carrousel 3D : les cartes sont empilées dans la même cellule et placées en coverflow */
 .viewport {
-  overflow: hidden;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(14, 26, 92, 0.16);
+  perspective: 1100px;
   touch-action: pan-y;
   cursor: grab;
   user-select: none;
@@ -178,172 +287,390 @@ body {
 }
 
 .track {
-  display: flex;
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.is-dragging .track {
-  transition: none;
+  display: grid;
+  transform-style: preserve-3d;
 }
 
 .card {
-  flex: 0 0 100%;
-  padding: 20px 20px 18px;
-  background: #fff;
-  opacity: 0.4;
-  transition: opacity 0.4s;
+  grid-area: 1 / 1;
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  background: var(--soft);
+  box-shadow: 0 10px 30px rgba(19, 37, 93, 0.12);
+  backface-visibility: hidden;
+  /* mobile : la carte défile à l'intérieur pour laisser de la place à la maison */
+  max-height: 38dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* La carte défile verticalement, donc c'est elle qui décide des gestes autorisés : on garde
+     le défilement vertical mais on réserve le glissement horizontal au carrousel (sinon le
+     navigateur le prend pour "page précédente" et annule le swipe vers l'arrière). */
+  touch-action: pan-y;
 }
 
-.card.is-current {
-  opacity: 1;
+.card * {
+  touch-action: pan-y;
+}
+
+/* Barre de défilement masquée : on garde le défilement au doigt / à la molette */
+.card {
+  scrollbar-width: none;
+}
+
+.card::-webkit-scrollbar {
+  display: none;
+}
+
+.is-dragging .card {
+  transition: none;
 }
 
 .kicker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.06em;
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--blue);
-}
-
-.kicker__num {
-  padding: 3px 7px;
-  border-radius: 4px;
-  background: var(--blue);
-  color: #fff;
+  color: var(--muted);
 }
 
 .card h2 {
-  margin: 0 0 8px;
-  font-weight: 700;
-  font-size: clamp(1.25rem, 5vw, 1.6rem);
+  margin: 0;
+  font-weight: 800;
+  font-size: clamp(1.15rem, 5vw, 1.4rem);
   line-height: 1.2;
   color: var(--navy);
 }
 
-.text {
-  margin: 0 0 14px;
-  font-size: 0.92rem;
-  line-height: 1.5;
-  color: var(--muted);
+.subtitle {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--sky);
 }
 
-.facts {
-  display: flex;
-  flex-wrap: wrap;
+.items {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.item {
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.item h3 {
+  margin: 0 0 2px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.item__link {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--navy);
+  border-radius: 8px;
+  color: var(--navy);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 
-.facts li {
-  padding: 6px 10px;
-  border-radius: 4px;
+.item__link:hover,
+.item__link:focus-visible {
+  background: var(--navy);
+  color: #fff;
+}
+
+.item p {
+  margin: 0;
   font-size: 0.78rem;
   font-weight: 500;
-  color: var(--blue);
-  background: var(--blue-soft);
+  line-height: 1.4;
+  color: var(--muted);
 }
 
 .controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 14px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .arrow {
-  width: 44px;
-  height: 44px;
+  flex: none;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 1.5px solid var(--navy);
-  background: #fff;
-  color: var(--navy);
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition:
-    background 0.2s,
-    color 0.2s;
-}
-
-.arrow:hover:not(:disabled) {
+  border: 0;
   background: var(--navy);
   color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
 }
 
 .arrow:disabled {
-  border-color: var(--line);
-  color: var(--line);
+  opacity: 0.2;
   cursor: default;
 }
 
-.dots {
+/* Frise numérotée des 7 étapes, reliée par un pointillé */
+.nodes {
+  position: relative;
   display: flex;
-  gap: 6px;
+  justify-content: space-between;
+  flex: 1;
+  max-width: 300px;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
+.nodes::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  border-top: 2px dashed var(--line);
+}
+
+.node {
+  position: relative;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border: 0;
-  border-radius: 99px;
-  background: var(--line);
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
   cursor: pointer;
   transition:
-    width 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.3s;
+    background 0.3s,
+    color 0.3s,
+    border-color 0.3s,
+    transform 0.3s;
 }
 
-.dot.is-done {
-  background: #9fb3e6;
+.node.is-done {
+  border-color: var(--cyan);
+  color: var(--cyan);
 }
 
-.dot.is-active {
-  width: 24px;
-  background: var(--blue);
+.node.is-current {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+  transform: scale(1.15);
 }
 
-.disclaimer {
-  flex: none;
-  margin: 8px 0 0;
-  text-align: center;
-  font-size: 0.68rem;
-  color: var(--muted);
-  pointer-events: none;
+/* ---------- Transition page de garde → étapes ---------- */
+/* 1. le bouton et la signature partent vers le bas */
+.is-leaving .cta {
+  animation: drop-out 0.3s cubic-bezier(0.55, 0, 1, 0.45) forwards;
 }
 
-/* ---------- Écrans plus grands ---------- */
-@media (min-width: 768px) {
-  .top__inner {
-    padding: 18px 32px;
+.is-leaving .signature,
+.is-leaving .headline {
+  animation: fade-out 0.25s ease forwards;
+}
+
+@keyframes drop-out {
+  to {
+    transform: translateY(160%);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* 2. le panneau bleu grandit puis devient blanc (piloté depuis App.tsx) ; la barre du haut descend */
+.is-entering .top {
+  animation: top-in 0.4s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes top-in {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+
+/* 3. la carte s'affiche, puis ses sous-cartes arrivent vite, l'une après l'autre ;
+   les cartes voisines n'apparaissent qu'à la fin */
+.is-entering .card.is-current {
+  animation: card-in 0.4s 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.is-entering .card:not(.is-current) {
+  opacity: 0 !important;
+}
+
+.is-entering .card.is-current .item {
+  animation: item-in 0.25s calc(0.75s + var(--i, 0) * 0.07s) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.is-entering .controls {
+  animation: fade-in 0.3s 0.7s both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.96);
+  }
+}
+
+@keyframes item-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- Tablette ---------- */
+@media (min-width: 640px) and (max-width: 899px) {
+  .app {
+    margin-top: 24px;
+    height: calc(100dvh - 48px);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(19, 37, 93, 0.12);
+  }
+}
+
+/* ---------- Desktop : texte à gauche, maison à droite ---------- */
+@media (min-width: 900px) {
+  body {
+    padding: 24px;
   }
 
-  .hint {
-    left: 32px;
-    top: 20px;
+  #root {
+    display: grid;
+    place-items: center;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: minmax(380px, 440px) 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'top stage'
+      'bottom stage';
+    max-width: 1280px;
+    height: 100%;
+    max-height: 860px;
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(19, 37, 93, 0.12);
+  }
+
+  .welcome-top,
+  .top {
+    grid-area: top;
+  }
+
+  .stage {
+    grid-area: stage;
+  }
+
+  .sheet {
+    grid-area: bottom;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .welcome-bottom,
+  .panel {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .welcome-top {
+    padding: 56px 48px 32px;
+    text-align: left;
+  }
+
+  .headline {
+    font-size: 3rem;
+  }
+
+  .welcome-bottom {
+    justify-content: flex-end;
+    align-items: stretch;
+    padding: 48px;
+  }
+
+  .cta {
+    max-width: none;
+  }
+
+  .signature {
+    text-align: left;
+  }
+
+  .top {
+    padding: 20px 28px;
   }
 
   .panel {
-    margin-top: -40px;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 28px 24px;
+    /* les cartes voisines s'effacent sur les bords de la colonne au lieu d'être coupées net */
+    mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  }
+
+  .viewport {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .track {
+    height: 100%;
   }
 
   .card {
-    padding: 26px 30px 24px;
+    padding: 24px;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  .card h2 {
+    font-size: 1.6rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .track,
   .card,
-  .dot,
-  .progress span {
+  .sheet,
+  .node {
     transition: none;
+  }
+
+  .is-leaving *,
+  .is-entering * {
+    animation: none !important;
   }
 }

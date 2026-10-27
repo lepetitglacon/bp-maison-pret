@@ -1,200 +1,146 @@
 import { useMemo } from 'react'
-import { RoundedBox } from '@react-three/drei'
+import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js'
 import { Part } from './Part'
-import { PART_LABELS, type PartId, type Step } from './steps'
+import { PART_IDS, PART_LABELS, type PartId, type Step, type Vec3 } from './steps'
 
-// Dimensions de la maison
-const W = 2.6 // largeur (x)
-const D = 2.0 // profondeur (z)
-const H = 1.5 // hauteur des murs
-const T = 0.12 // épaisseur des murs
-const R = 0.95 // hauteur du faîtage
+const MODEL_URL = '/maison.glb'
 
-const WALL = ['#f7f8fc']
-const FLOOR = ['#c9d3ea', '#9db4e6']
-const ROOF = ['#253a8f', '#e6ebf6']
-
-const glass = new THREE.MeshStandardMaterial({ color: '#8fc3ff', roughness: 0.15, metalness: 0.1, emissive: '#bfe0ff', emissiveIntensity: 0.25 })
-const wood = new THREE.MeshStandardMaterial({ color: '#14205e', roughness: 0.7 })
-const frame = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 })
-
-function Window({ position, size = [0.5, 0.45], rotY = 0 }: { position: [number, number, number]; size?: [number, number]; rotY?: number }) {
-  return (
-    <group position={position} rotation-y={rotY}>
-      <mesh material={frame}>
-        <boxGeometry args={[size[0] + 0.08, size[1] + 0.08, T + 0.02]} />
-      </mesh>
-      <mesh material={glass} position-z={0.001}>
-        <boxGeometry args={[size[0], size[1], T + 0.04]} />
-      </mesh>
-      <mesh material={frame}>
-        <boxGeometry args={[0.03, size[1], T + 0.05]} />
-      </mesh>
-      <mesh material={frame}>
-        <boxGeometry args={[size[0], 0.03, T + 0.05]} />
-      </mesh>
-    </group>
-  )
+// Couleurs du prototype BPBFC
+const COLORS: Record<PartId, string[]> = {
+  Objet012: ['#13255d'],
+  Objet013: ['#05ACEB'],
+  Rectangle005: ['#13255d'],
+  Rectangle006: ['#279be0'],
+  Rectangle007: ['#05ACEB'],
 }
+
+/** Distance de base des pièces en attente depuis leur place */
+const SPREAD = 1.4
+/** Éloignement maximal (début du parcours) ; les pièces se rapprochent au fil des étapes */
+const WAIT_FAR = 2.2
+/** Au-delà de cet angle entre deux faces, l'arête reste vive (pas de normale lissée) */
+const CREASE_ANGLE = Math.PI / 6
+/** Une pièce dont l'épaisseur est sous ce ratio de sa plus grande dimension est un "panneau" */
+const PANEL_RATIO = 0.35
+/** Réduction de la zone de survol invisible d'un panneau (dans son plan) */
+const HIT_SHRINK = 0.86
+
+/** Matériau qui ne dessine rien : sert uniquement à capter le survol / le clic */
+const HIT_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })
+
+export interface PartData {
+  id: PartId
+  geometry: THREE.BufferGeometry
+  /** Plan invisible qui bouche les trous d'un panneau (le "+X") pour le survol */
+  hitArea: THREE.BufferGeometry | null
+  explode: { pos: Vec3; rot: Vec3 }
+  push: Vec3
+  labelOffset: Vec3
+}
+
+/**
+ * Charge maison.glb, remet le modèle (exporté en Z-up) à l'endroit, le centre,
+ * et calcule pour chaque pièce sa direction d'éclatement depuis le centre de la maison.
+ */
+export function useHouseParts(): PartData[] {
+  const { scene } = useGLTF(MODEL_URL)
+  return useMemo(() => {
+    const geos = new Map<PartId, THREE.BufferGeometry>()
+    scene.updateMatrixWorld(true)
+    scene.traverse((o) => {
+      const mesh = o as THREE.Mesh
+      if (!mesh.isMesh || !PART_IDS.includes(mesh.name as PartId)) return
+      const g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
+      g.rotateX(-Math.PI / 2)
+      // Le GLB n'a pas de normales et partage ses sommets entre faces : un simple
+      // computeVertexNormals lisse les arêtes vives (ombrage baveux, "bosses").
+      geos.set(mesh.name as PartId, toCreasedNormals(g, CREASE_ANGLE))
+    })
+
+    const bounds = new THREE.Box3()
+    geos.forEach((g) => {
+      g.computeBoundingBox()
+      bounds.union(g.boundingBox!)
+    })
+    const center = bounds.getCenter(new THREE.Vector3())
+
+    return PART_IDS.filter((id) => geos.has(id)).map((id) => {
+      const g = geos.get(id)!
+      g.translate(-center.x, -center.y, -center.z)
+      g.computeBoundingBox()
+      const c = g.boundingBox!.getCenter(new THREE.Vector3())
+      const size = g.boundingBox!.getSize(new THREE.Vector3())
+      const isPanel = Math.min(size.x, size.y, size.z) < Math.max(size.x, size.y, size.z) * PANEL_RATIO
+      // Légèrement plus petit que le panneau, pour ne pas capter le survol dans le creux des angles
+      const thin = Math.min(size.x, size.y, size.z)
+      const shrink = (v: number) => (v === thin ? v : v * HIT_SHRINK)
+      const hitArea = isPanel
+        ? new THREE.BoxGeometry(shrink(size.x), shrink(size.y), shrink(size.z)).translate(c.x, c.y, c.z)
+        : null
+      const dir = c.lengthSq() < 0.01 ? new THREE.Vector3(0, 1, 0) : c.clone().normalize()
+      // On limite la descente pour que les pièces ne passent pas sous le sol
+      const pos = new THREE.Vector3(dir.x, Math.max(dir.y, -0.12), dir.z).multiplyScalar(SPREAD)
+      return {
+        id,
+        geometry: g,
+        hitArea,
+        explode: { pos: pos.toArray() as Vec3, rot: [dir.z * 0.35, 0.25, -dir.x * 0.35] },
+        push: dir.toArray() as Vec3,
+        labelOffset: [c.x, g.boundingBox!.max.y + 0.25, c.z],
+      }
+    })
+  }, [scene])
+}
+
+useGLTF.preload(MODEL_URL)
 
 interface HouseProps {
   step: Step
+  /** Survol / clic sur les pièces (désactivé sur la page de garde) */
+  interactive: boolean
+  /** Début de l'intro des étapes (secondes, performance.now), ou null */
+  introAt: number | null
   onSelect: (id: PartId) => void
 }
 
-export function House({ step, onSelect }: HouseProps) {
-  const gableGeo = useMemo(() => {
-    const s = new THREE.Shape()
-    s.moveTo(-D / 2, 0)
-    s.lineTo(D / 2, 0)
-    s.lineTo(0, R)
-    s.closePath()
-    const g = new THREE.ExtrudeGeometry(s, { depth: T, bevelEnabled: false })
-    g.translate(0, 0, -T / 2)
-    return g
-  }, [])
+/** À l'arrivée sur les étapes, la maison se désosse presque d'un coup, pendant la transition du panneau */
+const INTRO_FIRST = 0.05
+const INTRO_GAP = 0.06
 
-  const pitch = Math.atan(R / (D / 2))
-  const paneLen = Math.hypot(D / 2, R) + 0.28
-
-  const common = (id: PartId) => ({
-    id,
-    label: PART_LABELS[id],
-    placed: step.placed.includes(id),
-    active: step.active === id,
-    celebrate: !!step.celebrate,
-    onSelect,
-  })
-
+export function House({ step, interactive, introAt, onSelect }: HouseProps) {
+  const parts = useHouseParts()
+  // Les pièces en attente partent de loin et se rapprochent à chaque pièce posée
+  const remaining = PART_IDS.length - step.placed.length
+  const spread = 1 + ((WAIT_FAR - 1) * Math.max(0, remaining - 1)) / (PART_IDS.length - 1)
   return (
-    <group position-y={-0.9}>
-      {/* Fondations */}
-      <Part
-        {...common('floor')}
-        base={[0, -0.12, 0]}
-        explode={{ pos: [0, -0.85, 0], rot: [0.12, 0, 0] }}
-        push={[0, -1, 0]}
-        labelOffset={[0, -0.45, D / 2 + 0.3]}
-        colors={FLOOR}
-      >
-        {([stone, grass]) => (
-          <>
-            <RoundedBox args={[W + 0.5, 0.24, D + 0.5]} radius={0.06} material={stone} />
-            <RoundedBox args={[W + 1.2, 0.08, D + 1.2]} radius={0.04} position-y={-0.14} material={grass} />
-          </>
-        )}
-      </Part>
-
-      {/* Mur 1 — façade avant */}
-      <Part
-        {...common('front')}
-        base={[0, H / 2, D / 2 - T / 2]}
-        explode={{ pos: [0, 0.15, 1.5], rot: [0.38, 0, 0] }}
-        push={[0, 0, 1]}
-        labelOffset={[0, H / 2 + 0.3, 0.2]}
-        colors={WALL}
-      >
-        {([m]) => (
-          <>
-            <RoundedBox args={[W, H, T]} radius={0.03} material={m} />
-            <mesh material={wood} position={[-0.6, -H / 2 + 0.45, 0.02]}>
-              <boxGeometry args={[0.46, 0.9, T]} />
-            </mesh>
-            <mesh material={frame} position={[-0.45, -H / 2 + 0.45, T / 2 + 0.03]}>
-              <sphereGeometry args={[0.03, 12, 12]} />
-            </mesh>
-            <Window position={[0.55, 0.12, 0]} />
-          </>
-        )}
-      </Part>
-
-      {/* Mur 4 — arrière */}
-      <Part
-        {...common('back')}
-        base={[0, H / 2, -D / 2 + T / 2]}
-        explode={{ pos: [0, 0.15, -1.5], rot: [-0.38, 0, 0] }}
-        push={[0, 0, -1]}
-        labelOffset={[0, H / 2 + 0.3, -0.2]}
-        colors={WALL}
-      >
-        {([m]) => (
-          <>
-            <RoundedBox args={[W, H, T]} radius={0.03} material={m} />
-            <Window position={[-0.6, 0.12, 0]} />
-            <Window position={[0.6, 0.12, 0]} />
-          </>
-        )}
-      </Part>
-
-      {/* Mur 2 — gauche */}
-      <Part
-        {...common('left')}
-        base={[-W / 2 + T / 2, H / 2, 0]}
-        explode={{ pos: [-1.5, 0.15, 0], rot: [0, 0, 0.38] }}
-        push={[-1, 0, 0]}
-        labelOffset={[-0.2, H / 2 + 0.3, 0]}
-        colors={WALL}
-      >
-        {([m]) => (
-          <>
-            <RoundedBox args={[T, H, D - 2 * T]} radius={0.03} material={m} />
-            <Window position={[0, 0.12, 0]} rotY={Math.PI / 2} size={[0.6, 0.5]} />
-          </>
-        )}
-      </Part>
-
-      {/* Mur 3 — droite */}
-      <Part
-        {...common('right')}
-        base={[W / 2 - T / 2, H / 2, 0]}
-        explode={{ pos: [1.5, 0.15, 0], rot: [0, 0, -0.38] }}
-        push={[1, 0, 0]}
-        labelOffset={[0.2, H / 2 + 0.3, 0]}
-        colors={WALL}
-      >
-        {([m]) => (
-          <>
-            <RoundedBox args={[T, H, D - 2 * T]} radius={0.03} material={m} />
-            <Window position={[0, 0.12, -0.35]} rotY={Math.PI / 2} size={[0.38, 0.5]} />
-            <Window position={[0, 0.12, 0.35]} rotY={Math.PI / 2} size={[0.38, 0.5]} />
-          </>
-        )}
-      </Part>
-
-      {/* Toit */}
-      <Part
-        {...common('roof')}
-        base={[0, H, 0]}
-        explode={{ pos: [0, 1.35, 0], rot: [0, 0.3, 0] }}
-        push={[0, 1, 0]}
-        labelOffset={[0, R + 0.55, 0]}
-        colors={ROOF}
-      >
-        {([tile, gable]) => (
-          <>
-            <RoundedBox
-              args={[W + 0.3, 0.1, paneLen]}
-              radius={0.03}
-              position={[0, R / 2 + 0.05, D / 4]}
-              rotation-x={pitch}
-              material={tile}
-            />
-            <RoundedBox
-              args={[W + 0.3, 0.1, paneLen]}
-              radius={0.03}
-              position={[0, R / 2 + 0.05, -D / 4]}
-              rotation-x={-pitch}
-              material={tile}
-            />
-            <mesh geometry={gableGeo} position-x={-W / 2 + T / 2} rotation-y={Math.PI / 2} material={gable} />
-            <mesh geometry={gableGeo} position-x={W / 2 - T / 2} rotation-y={Math.PI / 2} material={gable} />
-            <mesh position={[0.7, R * 0.7, -0.3]} material={tile}>
-              <boxGeometry args={[0.26, 0.6, 0.26]} />
-            </mesh>
-          </>
-        )}
-      </Part>
+    <group>
+      {parts.map((p, i) => (
+        <Part
+          key={p.id}
+          id={p.id}
+          label={PART_LABELS[p.id]}
+          base={[0, 0, 0]}
+          explode={p.explode}
+          push={p.push}
+          labelOffset={p.labelOffset}
+          colors={COLORS[p.id]}
+          placed={step.placed.includes(p.id)}
+          active={step.active === p.id}
+          interactive={interactive}
+          spread={spread}
+          intro={introAt === null ? null : { at: introAt, delay: INTRO_FIRST + i * INTRO_GAP }}
+          onSelect={onSelect}
+        >
+          {([m]) => (
+            <>
+              <mesh geometry={p.geometry} material={m} castShadow receiveShadow />
+              {p.hitArea && <mesh geometry={p.hitArea} material={HIT_MATERIAL} />}
+            </>
+          )}
+        </Part>
+      ))}
     </group>
   )
 }
